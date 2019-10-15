@@ -9,8 +9,20 @@ public class Rocket : MonoBehaviour
     [SerializeField] float rcsThrust = 100f;
     [SerializeField] float mainThrust = 100f;
 
+    [SerializeField] AudioClip mainEngine;
+    [SerializeField] AudioClip deathSFX;
+    [SerializeField] AudioClip winSFX;
+
+    [SerializeField] ParticleSystem mainEngineParticles;
+    [SerializeField] ParticleSystem deathParticles;
+    [SerializeField] ParticleSystem winParticles;
+
+
     private Rigidbody rigidBody;
     private AudioSource audioSource;
+    
+    enum State { ALIVE, DYING, TRANSCENDING};
+    State currentState = State.ALIVE;
 
     // Start is called before the first frame update
     void Start()
@@ -22,44 +34,90 @@ public class Rocket : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        Thrust();
-        ProcessInput();
+        if(currentState == State.ALIVE)
+        {
+            RespondToThrustInput();
+            RespondToRotateInput();
+        }
+       
     }
 
     private void OnCollisionEnter(Collision collision)
     {
+        if(currentState != State.ALIVE)
+        {
+            return;
+        }
+
         switch (collision.gameObject.tag)
         {
             case "Friendly": // do nothing;
                 break;
-            case "Finish": SceneManager.LoadScene(1);
+            case "Finish":
+                StartSuccessSequence();
                 break;
-            default: SceneManager.LoadScene(0);
+            default:
+                StartDeathSequence();
                 break;
 
         }
 
     }
 
-    private void Thrust()
+    private void StartDeathSequence()
+    {
+        currentState = State.DYING;
+        audioSource.Stop();
+        audioSource.PlayOneShot(deathSFX);
+        deathParticles.Play();
+        Invoke("ReloadLevel", 2f);
+    }
+
+    private void StartSuccessSequence()
+    {
+        currentState = State.TRANSCENDING;
+        audioSource.Stop();
+        audioSource.PlayOneShot(winSFX);
+        winParticles.Play();
+        Invoke("LoadNextLevel", 2f);
+    }
+
+    private void ReloadLevel()
+    {
+        SceneManager.LoadScene(0);
+    }
+
+    private void LoadNextLevel()
+    {
+        SceneManager.LoadScene(1);
+    }
+
+    private void RespondToThrustInput()
     {
         // Thrusting
         if (Input.GetKey(KeyCode.Space))
         {
-            float thrustThisFrame = mainThrust;
-            rigidBody.AddRelativeForce(Vector3.up *  thrustThisFrame);
-            if (!audioSource.isPlaying)
-            {
-                audioSource.Play();
-            }
+            ApplyThrust();
         }
         else
         {
             audioSource.Stop();
+            mainEngineParticles.Stop();
         }
     }
 
-    private void ProcessInput()
+    private void ApplyThrust()
+    {
+        float thrustThisFrame = mainThrust;
+        rigidBody.AddRelativeForce(Vector3.up * thrustThisFrame);
+        if (!audioSource.isPlaying)
+        {
+            audioSource.PlayOneShot(mainEngine);
+        }
+        mainEngineParticles.Play();
+    }
+
+    private void RespondToRotateInput()
     {
         rigidBody.freezeRotation = true;
 
